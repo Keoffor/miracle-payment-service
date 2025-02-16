@@ -16,7 +16,7 @@ spring:
       dialect: org.hibernate.dialect.MySQLDialect
 stripe:
   secret:
-    key: sk_test_51JXPLYHKIk3Z1fYKiZUTlgkn1hPxDLUZuptBLCOWmXT3lstmc47vJMdClxvf43neFWaUKttmbTUgeoiKQAIR4JGP00sotOBYVI
+    key: {stripe-secret-key}
   webhook:
     secret:
-      key: whsec_3cb4cc639580b9b8979046c2a21c9cce9d047925dbcfaaa3b6fc5c6fe6722beb
+      key: {webhook secret-key}
