@@ -16,7 +16,7 @@ spring:
       dialect: org.hibernate.dialect.MySQLDialect
 stripe:
   secret:
-    key: {stripe-secret-key}
+    key: {add_your_key}
   webhook:
     secret:
-      key: {webhook secret-key}
+      key:  {add_secret_key}

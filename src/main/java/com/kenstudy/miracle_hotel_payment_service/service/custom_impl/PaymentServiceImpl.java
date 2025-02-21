@@ -1,5 +1,6 @@
 package com.kenstudy.miracle_hotel_payment_service.service.custom_impl;
 
+import com.kenstudy.miracle_hotel_payment_service.exception.GuestNotFoundException;
 import com.kenstudy.miracle_hotel_payment_service.constant.PaymentConstant;
 import com.kenstudy.miracle_hotel_payment_service.dto.BookedRoom;
 import com.kenstudy.miracle_hotel_payment_service.dto.PaymentBookedRoomDTO;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,7 +43,13 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Transactional
     public PaymentResponse bookedRoomCheckout(PaymentRequest paymentRequest) throws StripeException {
-        UUID sessionId = UUID.randomUUID();
+
+
+        LocalDateTime dateTime = LocalDateTime.now(ZoneId.systemDefault());
+        int year = dateTime.getYear();
+        String sessionId = "ID-" + year + "-" + new Random().nextInt(1000);
+
+
         Stripe.apiKey = secretKey;
         SessionCreateParams.LineItem lineItem = null;
         Session session = null;
@@ -55,11 +64,11 @@ public class PaymentServiceImpl implements PaymentService {
                 .setMode(SessionCreateParams.Mode.PAYMENT)
                 .setCustomer(customerStripe.getId())
                 .setSuccessUrl("http://localhost:8080/booking-success?session_id={CHECKOUT_SESSION_ID}")
-                .setCancelUrl("http://localhost:8080/failure");
+                .setCancelUrl("http://localhost:8080/checkout");
         for (BookedRoom bookedRoom : customer.getBookedRooms()) {
             String currency = bookedRoom.getCurrency();
             if (currency == null || currency.isEmpty()) {
-                currency = "usd"; // Set default currency to "usd"
+                currency = "USD"; // Set default currency to "usd"
             }
             BigDecimal bigDecimal = new BigDecimal(100);
             paramBuilder.addLineItem(
@@ -79,17 +88,20 @@ public class PaymentServiceImpl implements PaymentService {
         }
         try {
             session = Session.create(paramBuilder.build());
+
             Map<String, List<String>> addCustomer = customer.getCustomerSessions()
                     != null ? new HashMap<>(customer.getCustomerSessions()) : new HashMap<>();
-            String sessionCustomer = session.getCustomer();
+
+            String customerId = paymentRequest.getCustomerId();
 
             // Retrieve or initialize session list for the customer
-            List<String> addSession = addCustomer.getOrDefault(sessionCustomer, new ArrayList<>());
+            List<String> addSession = addCustomer.getOrDefault(customerId, new ArrayList<>());
 
             // Add the new session
-            addSession.add(String.valueOf(sessionId));
-            addCustomer.put(sessionCustomer, addSession);
+            addSession.add(sessionId);
+            addCustomer.put(customerId, addSession);
             customer.setCustomerSessions(addCustomer);
+            customer.setStripeNumber(session.getCustomer());
             customer.setDate(new Date());
             paymentRepository.save(customer);
         } catch (StripeException e) {
@@ -97,19 +109,19 @@ public class PaymentServiceImpl implements PaymentService {
         }
         return PaymentResponse.builder()
                 .status(customer.getStatus())
-                .sessionId(String.valueOf(sessionId))
+                .sessionId(sessionId)
+                .customerId(session.getCustomer())
                 .message("Payment session created")
                 .stripeUrl(session.getUrl())
                 .build();
     }
 
     @Override
-    public List<PaymentBookedRoomDTO> findBookedRoomsByEmailAndCustomerId(String email, String customerId) {
-        List<Object[]> results = paymentRepository.findCustomerBookedRoomsByGuestEmailAndCustomerId(email, customerId);
+    public List<PaymentBookedRoomDTO> findBookingRoomsByEmailAndCustomerId(String email, String customerId) {
 
-        if (results.isEmpty()) {
-            throw new RuntimeException("No record found");
-        }
+        List<Object[]> results = paymentRepository.findCustomerBookedRoomsByGuestEmailAndCustomerId(email, customerId)
+                .orElseThrow(() -> new GuestNotFoundException("No record found for email " + email + " and Id " + customerId) );
+
         return results.stream().map(objects -> new PaymentBookedRoomDTO(
                         (Long) objects[0],
                         (String) objects[1],
@@ -129,31 +141,43 @@ public class PaymentServiceImpl implements PaymentService {
 
 
     private Payment findOrCreateCustomer(PaymentRequest paymentRequest) {
-        return paymentRepository.findByGuestEmail(paymentRequest.getGuestEmail())
-                .map(existingCustomer -> {
-                    if (StringUtils.equals(existingCustomer.getStatus(), PaymentConstant.INITIATE_PAYMENT.name())) {
-                        List<BookedRoom> existingBookedRooms = new ArrayList<>(existingCustomer.getBookedRooms());
+        List<Payment> customerList = paymentRepository.findByGuestEmail(paymentRequest.getGuestEmail())
+                .orElse(Collections.emptyList());
 
-                        List<BookedRoom> newBookedRooms = paymentRequest.getBookedRooms().stream()
-                                .map(CustomerUtils::mapBookedRoom)
-                                .collect(Collectors.toCollection(ArrayList::new));
+        if (!customerList.isEmpty()) {
+            List<Payment> updatedCustomers = customerList.stream().map(existingCustomer -> {
+                if (PaymentConstant.INITIATE_PAYMENT.name().equals(existingCustomer.getStatus())) {
+                    List<BookedRoom> existingBookedRooms = new ArrayList<>(existingCustomer.getBookedRooms());
 
-                        existingBookedRooms.addAll(newBookedRooms);
-                        existingCustomer.setBookedRooms(existingBookedRooms);
-                        existingCustomer.setDate(new Date());
+                    List<BookedRoom> newBookedRooms = paymentRequest.getBookedRooms().stream()
+                            .map(CustomerUtils::mapBookedRoom)
+                            .collect(Collectors.toCollection(ArrayList::new));
 
-                    } else if (StringUtils.equals(existingCustomer.getStatus(), PaymentConstant.PAYMENT_COMPLETED.name())) {
-                        return paymentRepository.save(CustomerUtils.createNewCustomer(paymentRequest));
-                    }
+                    existingBookedRooms.addAll(newBookedRooms);
+                    existingCustomer.setBookedRooms(existingBookedRooms);
+                    existingCustomer.setDate(new Date());
 
-                    if (existingCustomer.getCustomerSessions() == null) {
-                        existingCustomer.setCustomerSessions(new HashMap<>());
-                    }
-                    return paymentRepository.save(existingCustomer);
+                } else if (PaymentConstant.PAYMENT_COMPLETED.name().equals(existingCustomer.getStatus())) {
+                    return paymentRepository.save(CustomerUtils.createNewCustomer(paymentRequest));
+                }
 
-                })
-                .orElseGet(() -> paymentRepository.save(CustomerUtils.createNewCustomer(paymentRequest)));
+                if (existingCustomer.getCustomerSessions() == null) {
+                    existingCustomer.setCustomerSessions(new HashMap<>());
+                }
+                return paymentRepository.save(existingCustomer);
+
+            }).toList();
+
+            // Return the latest updated payment based on the most recent date
+            return updatedCustomers.stream()
+                    .max(Comparator.comparing(Payment::getDate))
+                    .orElse(updatedCustomers.get(0)); // Fallback to first if all dates are null
+        }
+
+        // If no existing customer, create a new one
+        return paymentRepository.save(CustomerUtils.createNewCustomer(paymentRequest));
     }
 
 
 }
+

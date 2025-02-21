@@ -12,6 +12,7 @@ import java.util.List;
 public class PaymentRequest {
     private String guestFullName;
     private String guestEmail;
+    private String customerId;
     private List<BookedRoom> bookedRooms;
     private Address address;
 
