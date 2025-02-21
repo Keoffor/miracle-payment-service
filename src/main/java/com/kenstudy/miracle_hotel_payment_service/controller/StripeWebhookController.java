@@ -79,14 +79,15 @@ public class StripeWebhookController {
         String paymentIntentId = paymentIntent.getId();
         log.info("Payment Status: {}", paymentStatus);
         log.info("Payment Intent ID: {}", paymentIntentId);
-        String customerId = paymentIntent.getCustomer();
+        String stripeNumber = paymentIntent.getCustomer();
 
-        if (customerId != null) {
-            List<Payment> paymentsByCustomerId = paymentRepository.findPaymentsByCustomerId(customerId);
+        if (stripeNumber != null) {
+            List<Payment> paymentsByStripeNumber = paymentRepository.findPaymentByStripeNumber(stripeNumber);
 
-            if (!paymentsByCustomerId.isEmpty()) {
-                paymentsByCustomerId.forEach(payment -> {
-                    if ("succeeded".equals(paymentStatus)) {
+            if (!paymentsByStripeNumber.isEmpty()) {
+                paymentsByStripeNumber.forEach(payment -> {
+                    if ("succeeded".equals(paymentStatus) &&
+                    PaymentConstant.INITIATE_PAYMENT.name().equals(payment.getStatus())) {
                         payment.setStatus(PaymentConstant.PAYMENT_COMPLETED.name());
                         payment.setDate(new Date());
                         try {
@@ -98,7 +99,7 @@ public class StripeWebhookController {
                     }
                 });
             } else {
-                log.warn("No Payment record found for Customer ID: {}", customerId);
+                log.warn("No Payment record found for Customer ID: {}", stripeNumber);
             }
         } else {
             log.warn("Payment Intent has no associated Customer ID");

@@ -12,13 +12,17 @@ import java.util.Optional;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
-    Optional<Payment> findByGuestEmail(String email);
+    Optional<List<Payment>> findByGuestEmail(String email);
 
+//    @Query(value = "SELECT DISTINCT p.* FROM payment p " +
+//            "JOIN customer_sessions cs ON p.id = cs.payment_id " +
+//            "WHERE cs.customer_id = :customerId", nativeQuery = true)
+//    List<Payment>findPaymentsByCustomerId(@Param("customerId") String customerId);
+//  @Query(value = "SELECT DISTINCT p.* FROM payment p WHERE stripe_number = : number", nativeQuery = true)
     @Query(value = "SELECT DISTINCT p.* FROM payment p " +
             "JOIN customer_sessions cs ON p.id = cs.payment_id " +
-            "WHERE cs.customer_id = :customerId", nativeQuery = true)
-    List<Payment> findPaymentsByCustomerId(@Param("customerId") String customerId);
-
+            "WHERE p.stripe_number = :number", nativeQuery = true)
+    List<Payment> findPaymentByStripeNumber(@Param("number") String number);
 
     @Query(value = "SELECT DISTINCT p.id, p.guest_full_name,p.guest_email, p.status, br.room_id, br.room_type, " +
             "br.amount,br.date FROM payment p " +
@@ -27,7 +31,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             "WHERE p.guest_email = :guestEmail " +
             "AND cs.customer_id = :customerId",
             nativeQuery = true)
-    List<Object[]> findCustomerBookedRoomsByGuestEmailAndCustomerId(
+    Optional<List<Object[]>> findCustomerBookedRoomsByGuestEmailAndCustomerId(
             @Param("guestEmail") String guestEmail,
             @Param("customerId") String customerId);
 

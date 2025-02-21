@@ -1,5 +1,6 @@
 package com.kenstudy.miracle_hotel_payment_service.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.kenstudy.miracle_hotel_payment_service.dto.Address;
 import com.kenstudy.miracle_hotel_payment_service.dto.BookedRoom;
 import com.kenstudy.miracle_hotel_payment_service.model.audit.Audit;
@@ -22,12 +23,15 @@ public class Payment implements Audit {
     private Long id;
     private String guestFullName;
     private String guestEmail;
+    @JsonIgnore
+    private String stripeNumber;
     @ElementCollection
     @CollectionTable(name = "booked_rooms", joinColumns = @JoinColumn(name = "payment_id"))
     private List<BookedRoom> bookedRooms;
     @Embedded
     private Address address;
     private String status;
+
 
     @ElementCollection
     @CollectionTable(name = "customer_sessions", joinColumns = @JoinColumn(name = "payment_id"))
