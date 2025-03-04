@@ -16,7 +16,6 @@ import com.stripe.model.Customer;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -63,8 +62,8 @@ public class PaymentServiceImpl implements PaymentService {
         SessionCreateParams.Builder paramBuilder = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
                 .setCustomer(customerStripe.getId())
-                .setSuccessUrl("http://localhost:8080/booking-success?session_id={CHECKOUT_SESSION_ID}")
-                .setCancelUrl("http://localhost:8080/checkout");
+                .setSuccessUrl("http://hotel.kenstudy.com/booking-success?session_id={CHECKOUT_SESSION_ID}")
+                .setCancelUrl("http://hotel.kenstudy.com/checkout");
         for (BookedRoom bookedRoom : customer.getBookedRooms()) {
             String currency = bookedRoom.getCurrency();
             if (currency == null || currency.isEmpty()) {
